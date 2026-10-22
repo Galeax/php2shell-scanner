@@ -117,12 +117,27 @@ La **cible** (premier argument) choisit le mode — une seule commande à reteni
 
 ## Démonstrations (POC)
 
-Captures des quatre cas de détection (clic → lecteur vidéo GitHub) :
+Les quatre cas de détection (lecteurs intégrés) :
 
-| | Local (`local`) | À distance (URL) |
-|---|---|---|
-| **Vulnérable** | [▶ Voir la démo](media/poc/POC_DETECT_VULN_LOCAL.mp4) | [▶ Voir la démo](media/poc/POC_DETECT_VULN_REMOTE.mp4) |
-| **Non vulnérable** | [▶ Voir la démo](media/poc/POC_DETECT_NOT_VULN_LOCAL.mp4) | [▶ Voir la démo](media/poc/POC_DETECT_NOT_VULN_REMOTE.mp4) |
+<table>
+  <thead>
+    <tr><th></th><th>Local (<code>local</code>)</th><th>À distance (URL)</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center"><b>Vulnérable</b></td>
+      <td><video src="https://github.com/Galeax/php2shell-scanner/raw/main/media/poc/POC_DETECT_VULN_LOCAL.mp4" controls width="320" muted>▶ <a href="media/poc/POC_DETECT_VULN_LOCAL.mp4">POC_DETECT_VULN_LOCAL.mp4</a></video></td>
+      <td><video src="https://github.com/Galeax/php2shell-scanner/raw/main/media/poc/POC_DETECT_VULN_REMOTE.mp4" controls width="320" muted>▶ <a href="media/poc/POC_DETECT_VULN_REMOTE.mp4">POC_DETECT_VULN_REMOTE.mp4</a></video></td>
+    </tr>
+    <tr>
+      <td align="center"><b>Non vulnérable</b></td>
+      <td><video src="https://github.com/Galeax/php2shell-scanner/raw/main/media/poc/POC_DETECT_NOT_VULN_LOCAL.mp4" controls width="320" muted>▶ <a href="media/poc/POC_DETECT_NOT_VULN_LOCAL.mp4">POC_DETECT_NOT_VULN_LOCAL.mp4</a></video></td>
+      <td><video src="https://github.com/Galeax/php2shell-scanner/raw/main/media/poc/POC_DETECT_NOT_VULN_REMOTE.mp4" controls width="320" muted>▶ <a href="media/poc/POC_DETECT_NOT_VULN_REMOTE.mp4">POC_DETECT_NOT_VULN_REMOTE.mp4</a></video></td>
+    </tr>
+  </tbody>
+</table>
+
+> Les lecteurs s'affichent une fois la branche fusionnée dans `main` (les URL `raw/main` pointent vers les fichiers de `main`). En attendant, les liens de repli ouvrent chaque vidéo.
 
 ---
 
