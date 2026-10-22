@@ -115,6 +115,17 @@ La **cible** (premier argument) choisit le mode — une seule commande à reteni
 
 ---
 
+## Démonstrations (POC)
+
+Captures des quatre cas de détection (clic → lecteur vidéo GitHub) :
+
+| | Local (`local`) | À distance (URL) |
+|---|---|---|
+| **Vulnérable** | [▶ Voir la démo](media/poc/POC_DETECT_VULN_LOCAL.mp4) | [▶ Voir la démo](media/poc/POC_DETECT_VULN_REMOTE.mp4) |
+| **Non vulnérable** | [▶ Voir la démo](media/poc/POC_DETECT_NOT_VULN_LOCAL.mp4) | [▶ Voir la démo](media/poc/POC_DETECT_NOT_VULN_REMOTE.mp4) |
+
+---
+
 ## Interprétation
 
 | Verdict | Signification |
