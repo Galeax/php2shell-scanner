@@ -16,16 +16,12 @@ vous puissiez tester vos propres systèmes.
 
 ## Autorisation
 
-À n'utiliser que sur des systèmes dont vous êtes **propriétaire ou explicitement
-autorisé** à tester. Le script n'envoie aucune charge d'exploitation ; en mode
-`--active` il émet des requêtes HTTP volumineuses (sonde de taille) — à réserver
-aux environnements que vous maîtrisez.
+À n'utiliser que sur des systèmes dont vous êtes **propriétaire** ou sur lesquels vous êtes **explicitement
+autorisé** à lancer un test.
 
 ---
 
 ## Usage
-
-La **cible** (premier argument) choisit le mode — une seule commande à retenir :
 
 ```bash
 ./galeax-php2shell-check.sh <cible> [options]
@@ -34,28 +30,26 @@ La **cible** (premier argument) choisit le mode — une seule commande à reteni
 | Cible | Mode | Exemple |
 |---|---|---|
 | une **URL** | test à distance (boîte noire) | `./galeax-php2shell-check.sh https://site/` |
-| **`local`** | test sur CE serveur — verdict **CERTAIN** | `./galeax-php2shell-check.sh local` |
-| une **version** `x.y.z` | verdict direct sur cette version | `./galeax-php2shell-check.sh 8.4.26` |
+| **`local`** | test en local, sur la machine qui exécute le script Bash | `./galeax-php2shell-check.sh local` |
 
 ### Options
 
-- **`--deep`** — (à distance) récupération de version renforcée : plusieurs
-  chemins et méthodes HTTP, plus leak par page d'erreur.
+- **`--deep`** — (à distance) récupération de version par heuristiques : plusieurs
+  chemins et méthodes HTTP, plus tentative de leak par page d'erreur.
 - **`--active`** — (à distance) ajoute une sonde `post_max_size` (envoie des
-  corps HTTP ; à réserver aux environnements maîtrisés).
-- **`--crash`** — (à distance) **sonde de crash active** : envoie des corps
-  multipart piégés (clés imbriquées 62 niveaux, 1 → 8 → 20 Mio) pour **déclencher
-  et observer** le plantage mémoire → **preuve** de la vulnérabilité, même version
+  corps HTTP ; à réserver aux environnements de développement, risque de crash).
+- **`--crash`** — (à distance) tente de provoquer un crash de la cible : envoie des corps
+  multipart piégés (clés imbriquées 62 niveaux, 1 → 8 → 20 Mio) pour obtenir une preuve de la vulnérabilité, même version
   masquée. **INTRUSIF** : peut faire tomber le service (OOM worker) ; ~29 Mio
-  envoyés par hôte. À réserver aux cibles maîtrisées. Voir `--sapi`.
+  envoyés par hôte. À réserver aux environnements de développement, risque de crash. Voir `--sapi`.
 - **`--sapi auto|mod_php|fpm`** — filtre les signaux de crash selon le SAPI
   (`mod_php` ignore les signatures propres à FPM comme les 502/503/504, et
-  inversement). Défaut `auto`.
-- **`--path <p>`** (répétable) / **`--path-file <f>`** — chemins à tester pour la
+  inversement). Valeur par défaut : `auto`.
+- **`--path <p>`** (répétable) / **`--path-file <f>`**  : chemins à tester pour la
   sonde de crash (défaut : chemin de l'URL, sinon `/index.php`). Les cibles
-  phpMyAdmin sont automatiquement rejouées sur `/show_config_errors.php`.
+  phpMyAdmin entraînent un test sur `/show_config_errors.php`.
 - **`-H "Clé: valeur"`** (répétable) — en-tête HTTP custom (auth, cookies…),
-  propagé à toutes les requêtes.
+  propagé à toutes les requêtes, permet de gérer des scans authentifiés.
 - **`--phpinfo <url>`** — lit une page `phpinfo()` exposée (version + config
   autoritatives).
 - **`--php <chemin>`** — (mode `local`) binaire PHP précis à tester.
@@ -65,57 +59,19 @@ La **cible** (premier argument) choisit le mode — une seule commande à reteni
 
 ```bash
 ./galeax-php2shell-check.sh https://site/ --deep            # à distance, identification poussée
-./galeax-php2shell-check.sh https://site/ --deep --active   # + sonde post_max_size
-./galeax-php2shell-check.sh https://site/ --crash           # PROUVE le bug à distance (intrusif)
-./galeax-php2shell-check.sh local                           # sur le serveur (certain)
-./galeax-php2shell-check.sh 8.4.26                          # verdict sur une version
+./galeax-php2shell-check.sh https://site/ --deep --active   # + sonde post_max_size pour tests d'exploitation, risque de crash
+./galeax-php2shell-check.sh https://site/ --crash           # PROUVE le bug à distance (intrusif, risque de crash)
+./galeax-php2shell-check.sh local                           # sur le serveur (test local)
 ```
 
 > À distance **sans `--crash`**, le verdict repose sur la **version** : fiable
 > lorsqu'elle est exposée (en-têtes, `phpinfo`, ou récupérée par `--deep`).
 > **`--crash`** va plus loin et **prouve** la corruption mémoire en la déclenchant
-> — au prix de l'intrusivité (service potentiellement impacté). Pour une certitude
-> non-destructive, utilisez la cible **`local`**.
-
-### Identification du stack & présence PHP
-
-- **Présence PHP** confirmée même sans numéro de version, via les en-têtes, les
-  cookies de framework (`PHPSESSID`, `laravel_session`, `ci_session`, `CAKEPHP`,
-  `symfony`) et les hébergeurs PHP managés. Dans ce cas : verdict **« PHP confirmé
-  — version masquée »** + renvoi vers la cible `local` (au lieu d'« indéterminé »).
-- **Stack réel si PHP absent** : Python (Flask/Werkzeug, FastAPI/uvicorn,
-  Django), Node/Express, ASP.NET, Ruby/Rails, Java (Spring/Tomcat), Go → verdict
-  **HORS PÉRIMÈTRE**. Si la cible n'est pas en PHP, l'outil te le dit.
-- **WAF / CDN** en façade (Cloudflare, Sucuri, Akamai, Imperva, CloudFront,
-  F5, ModSecurity) signalé : il peut masquer la version, et l'origine derrière
-  le proxy peut différer.
-
-### Robustesse réseau (passe les cas réels)
-
-- **UA navigateur** par défaut : sans ça, les CDN/WAF (Cloudflare bot-management…)
-  servent une page dégradée et masquent le contenu. Surchargeable via
-  `GALEAX_UA="…"`.
-- **Compression** gzip/br gérée (`--compressed`) et **certificats TLS invalides**
-  acceptés (`-k`) — fréquents en pentest.
-- **Hébergeurs managés** (Kinsta, WP Engine, Pantheon…) reconnus comme PHP.
-- **Challenge anti-bot** (CF « Just a moment… », Incapsula…) détecté et signalé
-  (détection partielle ; rejouer depuis une IP/navigateur autorisé).
-- **Cible injoignable** (DNS/TLS/timeout/filtrage) : verdict `INJOIGNABLE` explicite.
-
-### Détection de version — robustesse
-
-- Plusieurs sources (en-têtes de tous les sauts de redirection, corps, `phpinfo`) ;
-  en cas de versions divergentes (proxy vs backend), la **plus basse** (la plus à
-  risque) est retenue et le conflit est signalé.
-- **Rétroportages distribution** : sur un build Debian / Ubuntu / RHEL…, le numéro
-  de version est *figé* et les correctifs sont rétroportés. Un `PHP/8.2.7` Debian
-  peut donc être **déjà patché**. Dans ce cas l'outil n'affirme pas « vulnérable »
-  avec certitude (confiance *moyenne*) et renvoie vers la cible **`local`**, qui
-  tranche via la présence du symbole du correctif.
+> au prix de risques de crash. Pour une certitude non-destructive, utilisez la cible **`local`**.
 
 ---
 
-## Démonstrations (POC)
+## Démonstrations vidéos
 
 Les quatre cas de détection (lecteurs intégrés) :
 
@@ -137,8 +93,6 @@ Les quatre cas de détection (lecteurs intégrés) :
   </tbody>
 </table>
 
-> Les lecteurs s'affichent une fois la branche fusionnée dans `main` (les URL `raw/main` pointent vers les fichiers de `main`). En attendant, les liens de repli ouvrent chaque vidéo.
-
 ---
 
 ## Interprétation
@@ -155,13 +109,12 @@ Les quatre cas de détection (lecteurs intégrés) :
 
 ## Remédiation
 
-- **Appliquer le correctif PHP** : 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 (remédiation
-  complète — la seule qui ferme définitivement la faille).
-- Branches **5.x / 7.x / 8.0 / 8.1** : en fin de vie, jamais corrigées → **migrer**.
-- Durcissement partiel (ne remplace pas le correctif) : `memory_limit=-1`
+- **Appliquer le correctif PHP** : 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12
+- Branches **5.x / 7.x / 8.0 / 8.1** : en fin de vie, pas de correctif pour le moment -> **migrer**.
+- Durcissement partiel (ces éléments ne remplacent pas le correctif) : `memory_limit=-1`
   non-overridable, `post_max_size` bas, `session.upload_progress.enabled=0`,
   `allow_url_include=Off`, (PHP 8.5) `fatal_error_backtraces=0`.
 
 ---
 
-© Galeax — Offensive Security. Pour toute question : votre contact Galeax.
+© Galeax - galeax.com - Pour toute question : contact@galeax.com
