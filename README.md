@@ -73,7 +73,7 @@ autorisé** à lancer un test.
 
 ## Démonstrations vidéos
 
-Les quatre cas de détection (lecteurs intégrés) :
+Les quatre cas de détection. Cliquer sur une animation ouvre la vidéo MP4 d'origine :
 
 <table>
   <thead>
@@ -82,13 +82,13 @@ Les quatre cas de détection (lecteurs intégrés) :
   <tbody>
     <tr>
       <td align="center"><b>Vulnérable</b></td>
-      <td><video src="https://github.com/Galeax/php2shell-scanner/raw/main/media/poc/POC_DETECT_VULN_LOCAL.mp4" controls width="320" muted>▶ <a href="media/poc/POC_DETECT_VULN_LOCAL.mp4">POC_DETECT_VULN_LOCAL.mp4</a></video></td>
-      <td><video src="https://github.com/Galeax/php2shell-scanner/raw/main/media/poc/POC_DETECT_VULN_REMOTE.mp4" controls width="320" muted>▶ <a href="media/poc/POC_DETECT_VULN_REMOTE.mp4">POC_DETECT_VULN_REMOTE.mp4</a></video></td>
+      <td><a href="media/poc/POC_DETECT_VULN_LOCAL.mp4"><img src="media/poc/POC_DETECT_VULN_LOCAL.gif" width="320" alt="Détection locale : vulnérable"></a></td>
+      <td><a href="media/poc/POC_DETECT_VULN_REMOTE.mp4"><img src="media/poc/POC_DETECT_VULN_REMOTE.gif" width="320" alt="Détection à distance : vulnérable"></a></td>
     </tr>
     <tr>
       <td align="center"><b>Non vulnérable</b></td>
-      <td><video src="https://github.com/Galeax/php2shell-scanner/raw/main/media/poc/POC_DETECT_NOT_VULN_LOCAL.mp4" controls width="320" muted>▶ <a href="media/poc/POC_DETECT_NOT_VULN_LOCAL.mp4">POC_DETECT_NOT_VULN_LOCAL.mp4</a></video></td>
-      <td><video src="https://github.com/Galeax/php2shell-scanner/raw/main/media/poc/POC_DETECT_NOT_VULN_REMOTE.mp4" controls width="320" muted>▶ <a href="media/poc/POC_DETECT_NOT_VULN_REMOTE.mp4">POC_DETECT_NOT_VULN_REMOTE.mp4</a></video></td>
+      <td><a href="media/poc/POC_DETECT_NOT_VULN_LOCAL.mp4"><img src="media/poc/POC_DETECT_NOT_VULN_LOCAL.gif" width="320" alt="Détection locale : non vulnérable"></a></td>
+      <td><a href="media/poc/POC_DETECT_NOT_VULN_REMOTE.mp4"><img src="media/poc/POC_DETECT_NOT_VULN_REMOTE.gif" width="320" alt="Détection à distance : non vulnérable"></a></td>
     </tr>
   </tbody>
 </table>
