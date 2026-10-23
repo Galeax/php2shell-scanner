@@ -30,8 +30,19 @@ TOOL_VERSION="1.0"
 # sa présence dans le binaire prouve le patch, même si une distribution a figé le
 # numéro de version en le rétroportant.
 SYMBOL="php_var_unserialize_set_incomplete_classes_only"
+# Branches EOL amont (ex. 7.4) : pas de correctif upstream, MAIS certaines distros
+# rétroportent le fix en gardant le n° de version figé. Cas connu : RHEL 8 corrige
+# php:7.4 dans 7.4.33-8 (RHSA-2026:87080). Conséquence : une 7.4.33 n'est plus
+# vulnérable « par défaut ». En 'local' on tranche par le symbole ou le changelog
+# RPM ; en boîte noire (version seule) le release RPM est invisible -> on nuance
+# (rétroportage probable sur build RHEL) plutôt que d'affirmer VULNÉRABLE.
 
 fixed_patch(){ case "$1" in 8.2) echo 35;; 8.3) echo 36;; 8.4) echo 27;; 8.5) echo 12;; *) echo "";; esac; }
+# Branches EOL amont SANS release upstream mais rétroportées par les distros (le
+# n° de version reste figé) : 7.4 (RHSA-2026:87080, 7.4.33-8), 8.0 (RHSA-2026:87151,
+# 8.0.30-8.el9 ; AlmaLinux 8.0.30-1.alma.1), 8.1 (backports distro). Pour ces
+# branches, la version seule ne tranche plus -> confirmer en 'local'.
+eol_backported(){ case "$1" in 7.4|8.0|8.1) return 0;; *) return 1;; esac; }
 ver_key(){ local M="${1%%.*}" m="${1#*.}"; [[ "$m" == "$1" ]] && m=0; echo $(( M*100 + m )); }
 # to_bytes "8M" -> 8388608 · "-1" -> -1 · "" si illisible (K/M/G, insensible à la casse).
 to_bytes(){
@@ -64,7 +75,14 @@ compute_verdict(){
     if (( patch < fp )); then VERDICT="VULNÉRABLE"; CONF="élevée"; RC=1; REASON="PHP $v < ${maj}.${fp} (correctif)"
     else                      VERDICT="NON VULNÉRABLE"; CONF="élevée"; RC=0; REASON="PHP $v ≥ ${maj}.${fp} (patché)"; fi
   elif (( $(ver_key "$maj") < $(ver_key 8.2) )); then
-    VERDICT="VULNÉRABLE"; CONF="élevée"; RC=1; REASON="PHP $v — branche EOL non corrigée (migrer)"
+    if eol_backported "$maj"; then
+      # EOL amont, mais rétroporté par les distros en gardant le n° figé (RHEL/Alma/
+      # Rocky). La version seule ne permet pas de trancher -> confiance réduite.
+      VERDICT="VULNÉRABLE"; CONF="moyenne"; RC=1
+      REASON="PHP $v — branche EOL amont ; n° figé par les distros qui rétroportent le fix (RHEL/Alma/Rocky) → confirmer le build en 'local'"
+    else
+      VERDICT="VULNÉRABLE"; CONF="élevée"; RC=1; REASON="PHP $v — branche EOL non corrigée (migrer)"
+    fi
   else
     VERDICT="NON VULNÉRABLE"; CONF="moyenne"; RC=0; REASON="PHP $v — postérieure aux branches corrigées"
   fi
@@ -310,10 +328,53 @@ if [[ "$LOCAL" -eq 1 ]]; then
   if [[ "$SYM_FOUND" == "oui" ]]; then line "symbole" "${GRN}présent${RST} dans $SYM_WHERE → correctif appliqué"
   else line "symbole" "${YEL}absent${RST} des binaires scannés"; fi
 
-  # Verdict : le symbole prime (backport-aware), la version en appui.
+  # Rétroportage distro (n° de version figé) : le changelog du paquet référence les
+  # CVE corrigées. Preuve autoritative pour les branches EOL rétroportées (RHEL :
+  # RHSA-2026:87080 ; Ubuntu/Debian : USN-8948, DLA/DSA) où le symbole amont peut ne
+  # pas être présent tel quel. Couvre RPM (RHEL/Alma/Rocky/Remi) ET dpkg (Debian/Ubuntu).
+  PKG_FIXED="n/a"; PKG_NEVRA=""; PKG_MGR=""; CVE_RE='CVE-2026-109618|CVE-2026-109619'
+  if command -v rpm >/dev/null 2>&1; then
+    PKG_NEVRA="$(rpm -qa 'php*' 2>/dev/null | grep -m1 -E '^php(-cli|-fpm|-common)?-[0-9]' || true)"
+    if [[ -n "$PKG_NEVRA" ]]; then
+      PKG_MGR="rpm"
+      rpm -q --changelog php php-cli php-fpm php-common 2>/dev/null \
+        | grep -qE "$CVE_RE" && PKG_FIXED="oui" || PKG_FIXED="non"
+    fi
+  fi
+  if [[ "$PKG_FIXED" == "n/a" ]] && command -v dpkg-query >/dev/null 2>&1; then
+    # Nommage Debian/Ubuntu : moteur = phpX.Y-common/-cli/-fpm. On ne garde que les
+    # paquets réellement installés (statut 'ii' ; la base dpkg liste aussi des paquets
+    # connus mais non installés, version vide).
+    PKG_NEVRA="$(dpkg-query -W -f='${db:Status-Abbrev} ${Package} ${Version}\n' 'php*' 2>/dev/null \
+                 | awk '$1=="ii"{print $2" "$3}' | grep -m1 -E '^php[0-9][.0-9]*-(cli|fpm|common) ' || true)"
+    if [[ -n "$PKG_NEVRA" ]]; then
+      PKG_MGR="dpkg"
+      # changelog Debian/Ubuntu : /usr/share/doc/<pkg>/changelog.Debian.gz (entrée CVE
+      # ajoutée par la MAJ de sécurité). zgrep tolère gz comme non-gz.
+      zgrep -qhE "$CVE_RE" /usr/share/doc/php*/changelog*.gz 2>/dev/null && PKG_FIXED="oui" || PKG_FIXED="non"
+    fi
+  fi
+  case "$PKG_FIXED" in
+    oui) line "paquet $PKG_MGR" "${GRN}CVE corrigée au changelog${RST} ($PKG_NEVRA) → rétroportage distro" ;;
+    non) line "paquet $PKG_MGR" "${YEL}CVE absente du changelog${RST} ($PKG_NEVRA)" ;;
+  esac
+
+  # Verdict : le symbole prime (backport-aware), le changelog RPM le complète pour
+  # les branches EOL rétroportées, la version en appui.
   compute_verdict "$VER"
   if   [[ "$SYM_FOUND" == "oui" ]]; then VERDICT="NON VULNÉRABLE"; CONF="certaine"; RC=0; REASON="symbole du correctif présent (build patché, rétroportage inclus)"
-  elif [[ "$RC" -eq 1 ]];            then CONF="certaine"; REASON="$REASON ; symbole du correctif absent"
+  elif [[ "$PKG_FIXED" == "oui" ]];  then VERDICT="NON VULNÉRABLE"; CONF="certaine"; RC=0; REASON="correctif rétroporté par la distribution (CVE au changelog $PKG_MGR : ${PKG_NEVRA:-paquet})"
+  elif [[ "$RC" -eq 1 ]]; then
+    if eol_backported "${VER%.*}" && [[ "$PKG_FIXED" == "n/a" ]]; then
+      # Branche EOL rétroportable, hors gestionnaire de paquets (build source/custom) :
+      # un backport peut ne pas porter le symbole amont et n'est recoupable ni par rpm
+      # ni par dpkg -> on ne peut pas exclure un correctif à 100 % sur le seul binaire.
+      CONF="élevée"; REASON="$REASON ; symbole absent — mais backport hors rpm/dpkg non exclu (vérifier le changelog du paquet, ou prouver via --crash)"
+    elif [[ "$PKG_FIXED" == "non" ]]; then
+      CONF="certaine"; REASON="$REASON ; correctif absent (symbole + CVE hors changelog $PKG_MGR)"
+    else
+      CONF="certaine"; REASON="$REASON ; symbole du correctif absent"
+    fi
   elif [[ -z "$VER" ]];              then VERDICT="INDÉTERMINÉ"; CONF="faible"; RC=3; REASON="version illisible et symbole absent"
   else                                   CONF="élevée"; REASON="$REASON ; symbole non trouvé (binaire strippé ?) — verdict sur version"
   fi
@@ -425,7 +486,7 @@ if [[ "$LOCAL" -eq 1 ]]; then
 
   if [[ "$JSON" -eq 1 ]]; then
     MODE=local
-    emit_json ',"symbol_patch":"'"$SYM_FOUND"'","sapi":"'"${SAPI:-}"'","config_source":"'"$MITIG_SRC"'","mitigations":'"$MITIG_LOCAL"',"mitigations_locked":'"$([[ $MITIG_LOCK -eq 1 ]] && echo true || echo false)"',"mitigation_list":"'"$(printf '%s' "$MITIG_LIST"|sed 's/\\/\\\\/g; s/"/\\"/g')"'","fixed_target":"'"${TARGET:-}"'"'
+    emit_json ',"symbol_patch":"'"$SYM_FOUND"'","pkg_backport":"'"$PKG_FIXED"'","pkg_manager":"'"$PKG_MGR"'","sapi":"'"${SAPI:-}"'","config_source":"'"$MITIG_SRC"'","mitigations":'"$MITIG_LOCAL"',"mitigations_locked":'"$([[ $MITIG_LOCK -eq 1 ]] && echo true || echo false)"',"mitigation_list":"'"$(printf '%s' "$MITIG_LIST"|sed 's/\\/\\\\/g; s/"/\\"/g')"'","fixed_target":"'"${TARGET:-}"'"'
     exit "$RC"
   fi
   verdict_box
@@ -657,12 +718,21 @@ if [[ "$CRASH" -eq 1 ]]; then
 else line "sonde crash" "${DIM}non lancée (--crash ; intrusif)${RST}"; fi
 
 # Rétroportage distro : une version < correctif sur un build Debian/RHEL peut être
-# déjà patchée (n° figé) -> on nuance et on renvoie vers 'local'.
+# déjà patchée (n° figé) -> on nuance et on renvoie vers 'local'. Cas des branches
+# EOL amont corrigées par les distros en gardant le n° figé : 7.4 (RHEL RHSA-2026:87080
+# 7.4.33-8, Debian 11 7.4.33, Ubuntu 20.04 7.4.3 USN-8948), 8.1 (Ubuntu 22.04 8.1.2),
+# 8.0 (RHEL 9 8.0.30). En boîte noire le release du paquet est invisible -> indéterminé
+# plutôt que vulnérable. (Un crash prouvé prime et n'est jamais nuancé.)
 BACKPORT=0
-if [[ "$RC" -eq 1 && "$REASON" == *"(correctif)"* ]] \
-   && printf '%s' "$DISTRO $SRV" | grep -qiE 'Debian|Ubuntu|Red Hat|CentOS|Rocky|Alma|SUSE'; then
-  CONF="moyenne"; BACKPORT=1
-  REASON="$REASON ; build ${DISTRO:-distro} → rétroportage possible, confirmer en 'local'"
+if [[ "$RC" -eq 1 && "$CRASH_PROVEN" -eq 0 ]] \
+   && printf '%s' "$DISTRO $SRV $XPB" | grep -qiE 'Debian|Ubuntu|Red Hat|CentOS|Rocky|Alma|SUSE'; then
+  if [[ "$REASON" == *"(correctif)"* ]]; then
+    CONF="moyenne"; BACKPORT=1
+    REASON="$REASON ; build ${DISTRO:-distro} → rétroportage possible, confirmer en 'local'"
+  elif eol_backported "${VER%.*}" && printf '%s' "$DISTRO $SRV $XPB" | grep -qiE 'Red Hat|CentOS|Rocky|Alma|Debian|Ubuntu'; then
+    VERDICT="INDÉTERMINÉ — potentiellement vulnérable (non tranchable à distance)"; CONF="faible"; RC=3; BACKPORT=1
+    REASON="PHP $VER sur ${DISTRO:-build distro} : branche EOL rétroportée en gardant le n° figé (RHEL/Alma/Rocky, Debian/Ubuntu) ; le release du paquet est invisible en boîte noire → ni patché ni vulnérable confirmé. Confirmer en 'local' (symbole/changelog paquet)"
+  fi
 fi
 # Un crash prouvé prime : il démontre l'exploitabilité malgré d'éventuelles mitigations.
 [[ "$RC" -eq 1 && "$MITIG_EVID" -eq 1 && "$CRASH_PROVEN" -eq 0 ]] && { VERDICT="EXPOSITION RÉDUITE (vulnérable mais mitigé)"; RC=2; }
