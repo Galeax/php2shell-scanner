@@ -100,9 +100,9 @@ Les quatre cas de détection. Cliquer sur une animation ouvre la vidéo MP4 d'or
 | Verdict | Signification |
 |---|---|
 | **VULNÉRABLE** | version/build antérieurs au correctif, branche EOL non corrigée, ou **crash prouvé** via `--crash` |
-| **NON VULNÉRABLE** | correctif présent (version ≥ corrigée, ou symbole du correctif détecté en local) |
+| **NON VULNÉRABLE** | correctif présent (version ≥ corrigée, symbole du correctif détecté en local, ou CVE corrigée référencée au changelog RPM — rétroportage distro) |
 | **EXPOSITION RÉDUITE** | vulnérable mais une mitigation détectée limite le vecteur |
-| **INDÉTERMINÉ** | version non obtenue à distance — utiliser `--deep`, `--phpinfo` ou `local` |
+| **INDÉTERMINÉ** | version non obtenue à distance, ou n° de version figé par un rétroportage distro (ex. `7.4.33` sur RHEL) — utiliser `--deep`, `--phpinfo` ou `local` |
 
 **Codes de sortie** : `0` non vulnérable · `1` vulnérable · `2` exposition réduite ·
 `3` indéterminé.
@@ -110,7 +110,14 @@ Les quatre cas de détection. Cliquer sur une animation ouvre la vidéo MP4 d'or
 ## Remédiation
 
 - **Appliquer le correctif PHP** : 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12
-- Branches **5.x / 7.x / 8.0 / 8.1** : en fin de vie, pas de correctif pour le moment -> **migrer**.
+- Branches **5.x / 7.x / 8.0 / 8.1** : en fin de vie, **pas de correctif amont** -> **migrer**.
+  - **Rétroportages distro** (le n° de version reste souvent figé, invisible en boîte noire) :
+    - **7.4** : RHEL 8 -> **7.4.33-8** ([RHSA-2026:87080](https://access.redhat.com/errata/RHSA-2026:87080)) · Debian 11 `7.4.33` (Freexian ELTS) · Ubuntu 20.04 **7.4.3-4ubuntu2.29+esm5** ([USN-8948-1](https://lists.ubuntu.com/archives/ubuntu-security-announce/2026-October/011433.html), Ubuntu Pro/ESM).
+    - **8.0** : RHEL 9 -> **8.0.30-8.el9** ([RHSA-2026:87151](https://access.redhat.com/errata/RHSA-2026:87151)) ; AlmaLinux `8.0.30-1.alma.1`. *(php:8.0 sur RHEL 8 est retiré : pas de correctif Red Hat.)*
+    - **8.1** : Ubuntu 22.04 -> **8.1.2-1ubuntu2.28** (USN-8948) · RHEL/clones : backports (pas de release amont).
+  - Branches **supportées rebasées** (n° déplacé, détecté par la version) : Debian 12 `8.2.35-1~deb12u1` (DLA-4848-1), Debian 13 `8.4.27-1~deb13u1` (DSA-6574-1), Ubuntu 24.04 `8.3.6-0ubuntu0.24.04.13`.
+  - Sur les branches EOL figées, **la version seule ne tranche pas** : confirmer en `local` (symbole + changelog `rpm`/`dpkg`). En boîte noire sur un build RHEL/clone ou Debian/Ubuntu, le verdict est **INDÉTERMINÉ** (ni patché ni vulnérable confirmé), jamais « non vulnérable ».
+  - **RHEL 7** : affecté uniquement par **CVE-2026-109619** (le code vulnérable à CVE-2026-109618 est absent).
 - Durcissement partiel (ces éléments ne remplacent pas le correctif) : `memory_limit=-1`
   non-overridable, `post_max_size` bas, `session.upload_progress.enabled=0`,
   `allow_url_include=Off`, (PHP 8.5) `fatal_error_backtraces=0`.
